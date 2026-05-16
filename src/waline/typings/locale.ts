@@ -70,4 +70,5 @@ export interface WalineLocale
   uploadImage: string;
   profile: string;
   logout: string;
+  turnstileHint: string;
 }

@@ -51,5 +51,6 @@ export default generateLocale([
   'Älteste',
   'Neueste',
   'Am beliebtesten',
+  'Bitte schließen Sie die Verifizierung vor dem Senden ab.',
   'Was denken Sie?',
 ]);

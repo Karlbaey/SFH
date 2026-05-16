@@ -18,7 +18,7 @@ const p0 = await build({
   plugins: [
     dts({
       outDir: ['dist'],
-      exclude: ['scripts', 'node_modules', './*.ts', 'package.json'],
+      exclude: ['scripts', 'node_modules', 'tests', './*.ts', 'package.json'],
       copyDtsFiles: true,
       tsconfigPath: 'tsconfig.json',
       entryRoot: 'src',

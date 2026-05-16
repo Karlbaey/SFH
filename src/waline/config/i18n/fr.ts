@@ -51,5 +51,6 @@ export default generateLocale([
   'Le plus ancien',
   'Dernier',
   'Le plus populaire',
+  'Veuillez terminer la vérification avant de soumettre.',
   "Qu'en pensez-vous ?",
 ]);

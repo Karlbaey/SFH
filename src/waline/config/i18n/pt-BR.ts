@@ -49,5 +49,6 @@ export default generateLocale([
   'Mais velho',
   'Mais recentes',
   'Mais quente',
+  'Conclua a verificacao antes de enviar.',
   'O que você acha?',
 ]);

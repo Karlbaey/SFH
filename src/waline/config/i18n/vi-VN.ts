@@ -49,5 +49,6 @@ export default generateLocale([
   'lâu đời nhất',
   'muộn nhất',
   'nóng nhất',
+  'Vui lòng hoàn tất xác minh trước khi gửi.',
   'What do you think?',
 ]);

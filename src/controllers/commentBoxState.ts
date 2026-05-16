@@ -6,6 +6,13 @@ import { getWordNumber } from '../waline/utils/wordCount';
 import commentListState, { makeDataReactive } from './commentListState';
 import configProvider from './configProvider';
 import userInfoState from './userInfoState';
+import {
+  createTurnstileCommentPayload,
+  ensureTurnstileScript,
+  isTurnstileEnabled,
+  resetTurnstileWidget,
+  type TurnstileLike,
+} from '../utils/turnstile';
 
 const commentBoxState = createRoot(() => {
   const [edit, setEdit] = createSignal<ReactiveComment | null>(null);
@@ -18,8 +25,13 @@ const commentBoxState = createRoot(() => {
   const [wordLimit, setWordLimit] = createSignal(0);
   const [isSubmitting, setIsSubmitting] = createSignal(false);
   const [showPreview, setShowPreview] = createSignal(false);
+  const [turnstileToken, setTurnstileToken] = createSignal('');
+  const [turnstileWidgetId, setTurnstileWidgetId] = createSignal<string | undefined>();
+  const [turnstileContainer, setTurnstileContainer] = createSignal<HTMLDivElement | undefined>();
+  const [turnstile, setTurnstile] = createSignal<TurnstileLike | undefined>();
   const { config } = configProvider;
   const previewSignal = createMemo(() => ({ showPreview: showPreview(), content: content() }));
+  const turnstileEnabled = createMemo(() => isTurnstileEnabled(config().turnstileKey));
   const [previewText, { mutate: setPreviewText }] = createResource(
     previewSignal,
     async (preSign: { content: string; showPreview: boolean }) => {
@@ -55,6 +67,50 @@ const commentBoxState = createRoot(() => {
       setContent(edit()!.orig() || '');
     }
   });
+  createEffect(() => {
+    const enabled = turnstileEnabled();
+    const container = turnstileContainer();
+
+    if (!enabled) {
+      setTurnstileToken('');
+      setTurnstileWidgetId(undefined);
+      setTurnstile(undefined);
+      container?.replaceChildren();
+      return;
+    }
+
+    if (
+      !container ||
+      turnstileWidgetId() ||
+      typeof window === 'undefined' ||
+      typeof document === 'undefined'
+    ) {
+      return;
+    }
+
+    void ensureTurnstileScript(window, document)
+      .then((instance) => {
+        if (turnstileWidgetId()) return;
+
+        setTurnstile(instance);
+        const widgetId = instance.render(container, {
+          sitekey: config().turnstileKey,
+          callback: (token: string) => {
+            setTurnstileToken(token);
+          },
+          'expired-callback': () => {
+            setTurnstileToken('');
+          },
+          'error-callback': () => {
+            setTurnstileToken('');
+          },
+        });
+        setTurnstileWidgetId(widgetId);
+      })
+      .catch(() => {
+        setTurnstileToken('');
+      });
+  });
   return {
     edit,
     rootId,
@@ -68,6 +124,9 @@ const commentBoxState = createRoot(() => {
     previewText,
     editorRef,
     showPreview,
+    turnstileEnabled,
+    turnstileToken,
+    turnstileWidgetId,
     setEdit,
     setReplyId,
     setReplyUser,
@@ -77,6 +136,10 @@ const commentBoxState = createRoot(() => {
     setIsSubmitting,
     setPreviewText,
     setShowPreview,
+    setTurnstileContainer,
+    setTurnstileToken,
+    setTurnstileWidgetId,
+    turnstile,
   };
 });
 
@@ -112,6 +175,11 @@ export function submitComment() {
     setEdit,
     setContent,
     setPreviewText,
+    turnstileEnabled,
+    turnstileToken,
+    turnstileWidgetId,
+    setTurnstileToken,
+    turnstile,
   } = commentBoxState;
   const { userMeta, inputRefs } = userMetaState;
   const { userInfo } = userInfoState;
@@ -126,6 +194,7 @@ export function submitComment() {
     ua: navigator.userAgent,
     url: config().path,
     recaptchaV3: '',
+    ...createTurnstileCommentPayload(turnstileEnabled(), turnstileToken()),
   };
   if (userInfo()?.token) {
     // login user
@@ -161,6 +230,9 @@ export function submitComment() {
 
     if (!comment.nick) comment.nick = locale().anonymous;
   }
+  if (turnstileEnabled() && !turnstileToken()) {
+    return alert(locale().turnstileHint);
+  }
   if (!isWordCountLegal()) {
     return alert(
       locale()
@@ -180,7 +252,11 @@ export function submitComment() {
   return (edit() ? updateComment({ objectId: edit()!.objectId, ...options }) : addComment(options))
     .then((res) => {
       setIsSubmitting(false);
-      if (res.errmsg) return alert(res.errmsg);
+      if (res.errmsg) {
+        setTurnstileToken('');
+        resetTurnstileWidget(turnstile(), turnstileWidgetId());
+        return alert(res.errmsg);
+      }
       const resComment = res.data!;
       if (edit()) {
         const target = data().find((item) => item.objectId === edit()!.objectId);
@@ -202,10 +278,14 @@ export function submitComment() {
       if (replyId()) {
         clearReplyState();
       }
+      setTurnstileToken('');
+      resetTurnstileWidget(turnstile(), turnstileWidgetId());
       return null;
     })
     .catch((err: TypeError) => {
       setIsSubmitting(false);
+      setTurnstileToken('');
+      resetTurnstileWidget(turnstile(), turnstileWidgetId());
       alert(err.message);
     });
 }

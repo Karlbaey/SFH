@@ -8,7 +8,8 @@ import { LoadingIcon, MarkdownIcon, PreviewIcon } from './Icons';
 
 const CommentBoxFooter: Component = () => {
   const { config, locale } = configProvider;
-  const { isSubmitting, showPreview, setShowPreview } = commentBoxState;
+  const { isSubmitting, showPreview, setShowPreview, turnstileEnabled, setTurnstileContainer } =
+    commentBoxState;
   const { isLogin } = userInfoState;
   return (
     <div class="mx-3 my-2 flex flex-wrap">
@@ -35,46 +36,54 @@ const CommentBoxFooter: Component = () => {
           <PreviewIcon />
         </button>
       </div>
-      <div class="flex flex-shrink flex-grow-3 items-center justify-end">
-        <Show
-          when={config().login !== 'disable' && !isLogin()}
-          fallback={
+      <div class="flex flex-grow-3 flex-shrink flex-col items-end">
+        <Show when={turnstileEnabled()}>
+          <div class="mb-2 w-full">
+            <p class="mb-2 text-xs text-sColor">{locale().turnstileHint}</p>
+            <div ref={(el) => setTurnstileContainer(el)} />
+          </div>
+        </Show>
+        <div class="flex items-center justify-end">
+          <Show
+            when={config().login !== 'disable' && !isLogin()}
+            fallback={
+              <CommonButton
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  userLogout();
+                }}
+              >
+                {locale().logout}
+              </CommonButton>
+            }
+          >
             <CommonButton
               type="button"
               onClick={(e) => {
                 e.preventDefault();
-                userLogout();
+                userLogin();
               }}
             >
-              {locale().logout}
+              {locale().login}
             </CommonButton>
-          }
-        >
-          <CommonButton
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              userLogin();
-            }}
-          >
-            {locale().login}
-          </CommonButton>
-        </Show>
-        <Show when={config().login !== 'force' || isLogin()}>
-          <button
-            type="submit"
-            class="mb-0 ms-3 inline-block min-w-10 flex cursor-pointer touch-manipulation select-none justify-center border border-sTheme rounded-lg border-solid bg-sTheme bg-sTheme px-4 py-2 text-xs text-sWhite transition duration-400 disabled:cursor-not-allowed disabled:border-sBorder hover:border-sActive disabled:bg-sDisableBg hover:bg-sActive disabled:text-sDisable disabled:hover:border-sBorder disabled:hover:bg-sDisableBg disabled:hover:text-sDisable"
-            disabled={isSubmitting()}
-            onClick={(e) => {
-              e.preventDefault();
-              submitComment();
-            }}
-          >
-            <Show when={isSubmitting()} fallback={locale().submit}>
-              <LoadingIcon size="16" />
-            </Show>
-          </button>
-        </Show>
+          </Show>
+          <Show when={config().login !== 'force' || isLogin()}>
+            <button
+              type="submit"
+              class="mb-0 ms-3 inline-block min-w-10 flex cursor-pointer touch-manipulation select-none justify-center border border-sTheme rounded-lg border-solid bg-sTheme bg-sTheme px-4 py-2 text-xs text-sWhite transition duration-400 disabled:cursor-not-allowed disabled:border-sBorder hover:border-sActive disabled:bg-sDisableBg hover:bg-sActive disabled:text-sDisable disabled:hover:border-sBorder disabled:hover:bg-sDisableBg disabled:hover:text-sDisable"
+              disabled={isSubmitting()}
+              onClick={(e) => {
+                e.preventDefault();
+                submitComment();
+              }}
+            >
+              <Show when={isSubmitting()} fallback={locale().submit}>
+                <LoadingIcon size="16" />
+              </Show>
+            </button>
+          </Show>
+        </div>
       </div>
     </div>
   );

@@ -49,6 +49,7 @@ const localeKeys = [
   'oldest',
   'latest',
   'hottest',
+  'turnstileHint',
   'reactionTitle',
 ];
 
