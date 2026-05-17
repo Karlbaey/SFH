@@ -115,8 +115,8 @@ const App: Component = () => {
         class={`py-1 text-end text-sLightGrey text-info ${config().noCopyright ? 'hidden' : ''}`}
       >
         Powered by{' '}
-        <a href="https://github.com/BeiyanYunyi/sodesu" target="_blank" rel="noopener noreferrer">
-          Sodesu
+        <a href="https://github.com/Karlbaey/SFH" target="_blank" rel="noopener noreferrer">
+          Sodesu for Haku
         </a>{' '}
         v{version}
       </div>

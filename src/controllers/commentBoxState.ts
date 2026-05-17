@@ -1,18 +1,21 @@
 import type { WalineCommentData } from '@waline/api';
+import type { TurnstileLike } from '../utils/turnstile';
 import type { ReactiveComment } from './commentListState';
 import { addComment, updateComment } from '@waline/api';
 import { createEffect, createMemo, createResource, createRoot, createSignal } from 'solid-js';
-import { getWordNumber } from '../waline/utils/wordCount';
-import commentListState, { makeDataReactive } from './commentListState';
-import configProvider from './configProvider';
-import userInfoState from './userInfoState';
 import {
   createTurnstileCommentPayload,
   ensureTurnstileScript,
   isTurnstileEnabled,
   resetTurnstileWidget,
-  type TurnstileLike,
+  resolveTurnstileSubmit,
 } from '../utils/turnstile';
+import { getWordNumber } from '../waline/utils/wordCount';
+import commentListState, { makeDataReactive } from './commentListState';
+import configProvider from './configProvider';
+import userInfoState from './userInfoState';
+
+const showAlert = globalThis.alert.bind(globalThis);
 
 const commentBoxState = createRoot(() => {
   const [edit, setEdit] = createSignal<ReactiveComment | null>(null);
@@ -25,6 +28,8 @@ const commentBoxState = createRoot(() => {
   const [wordLimit, setWordLimit] = createSignal(0);
   const [isSubmitting, setIsSubmitting] = createSignal(false);
   const [showPreview, setShowPreview] = createSignal(false);
+  const [showTurnstile, setShowTurnstile] = createSignal(false);
+  const [pendingTurnstileSubmit, setPendingTurnstileSubmit] = createSignal(false);
   const [turnstileToken, setTurnstileToken] = createSignal('');
   const [turnstileWidgetId, setTurnstileWidgetId] = createSignal<string | undefined>();
   const [turnstileContainer, setTurnstileContainer] = createSignal<HTMLDivElement | undefined>();
@@ -69,9 +74,12 @@ const commentBoxState = createRoot(() => {
   });
   createEffect(() => {
     const enabled = turnstileEnabled();
+    const visible = showTurnstile();
     const container = turnstileContainer();
 
     if (!enabled) {
+      setShowTurnstile(false);
+      setPendingTurnstileSubmit(false);
       setTurnstileToken('');
       setTurnstileWidgetId(undefined);
       setTurnstile(undefined);
@@ -80,6 +88,7 @@ const commentBoxState = createRoot(() => {
     }
 
     if (
+      !visible ||
       !container ||
       turnstileWidgetId() ||
       typeof window === 'undefined' ||
@@ -97,18 +106,25 @@ const commentBoxState = createRoot(() => {
           sitekey: config().turnstileKey,
           callback: (token: string) => {
             setTurnstileToken(token);
+            if (pendingTurnstileSubmit()) {
+              setPendingTurnstileSubmit(false);
+              void submitComment();
+            }
           },
           'expired-callback': () => {
             setTurnstileToken('');
+            setPendingTurnstileSubmit(false);
           },
           'error-callback': () => {
             setTurnstileToken('');
+            setPendingTurnstileSubmit(false);
           },
         });
         setTurnstileWidgetId(widgetId);
       })
       .catch(() => {
         setTurnstileToken('');
+        setPendingTurnstileSubmit(false);
       });
   });
   return {
@@ -124,6 +140,7 @@ const commentBoxState = createRoot(() => {
     previewText,
     editorRef,
     showPreview,
+    showTurnstile,
     turnstileEnabled,
     turnstileToken,
     turnstileWidgetId,
@@ -136,7 +153,10 @@ const commentBoxState = createRoot(() => {
     setIsSubmitting,
     setPreviewText,
     setShowPreview,
+    setShowTurnstile,
     setTurnstileContainer,
+    pendingTurnstileSubmit,
+    setPendingTurnstileSubmit,
     setTurnstileToken,
     setTurnstileWidgetId,
     turnstile,
@@ -175,9 +195,12 @@ export function submitComment() {
     setEdit,
     setContent,
     setPreviewText,
+    setShowTurnstile,
     turnstileEnabled,
     turnstileToken,
     turnstileWidgetId,
+    pendingTurnstileSubmit,
+    setPendingTurnstileSubmit,
     setTurnstileToken,
     turnstile,
   } = commentBoxState;
@@ -208,7 +231,8 @@ export function submitComment() {
     if (requiredMeta.includes('nick') && !comment.nick) {
       inputRefs.nick?.focus();
 
-      return alert(locale().nickError);
+      showAlert(locale().nickError);
+      return null;
     }
 
     // check mail
@@ -218,7 +242,8 @@ export function submitComment() {
     ) {
       inputRefs.mail?.focus();
 
-      return alert(locale().mailError);
+      showAlert(locale().mailError);
+      return null;
     }
 
     // check comment
@@ -230,16 +255,24 @@ export function submitComment() {
 
     if (!comment.nick) comment.nick = locale().anonymous;
   }
-  if (turnstileEnabled() && !turnstileToken()) {
-    return alert(locale().turnstileHint);
-  }
   if (!isWordCountLegal()) {
-    return alert(
+    showAlert(
       locale()
         .wordHint.replace('$0', (wordLimit as [number, number])[0].toString())
         .replace('$1', (wordLimit as [number, number])[1].toString())
         .replace('$2', wordCount().toString()),
     );
+    return null;
+  }
+  const turnstileSubmit = resolveTurnstileSubmit(turnstileEnabled(), turnstileToken());
+  if (!turnstileSubmit.shouldSubmit) {
+    setShowTurnstile(turnstileSubmit.shouldShowTurnstile);
+    setPendingTurnstileSubmit(turnstileSubmit.shouldPendSubmit);
+    return null;
+  }
+
+  if (pendingTurnstileSubmit()) {
+    setPendingTurnstileSubmit(false);
   }
 
   if (replyId() && rootId()) {
@@ -253,9 +286,11 @@ export function submitComment() {
     .then((res) => {
       setIsSubmitting(false);
       if (res.errmsg) {
+        setPendingTurnstileSubmit(false);
         setTurnstileToken('');
         resetTurnstileWidget(turnstile(), turnstileWidgetId());
-        return alert(res.errmsg);
+        showAlert(res.errmsg);
+        return null;
       }
       const resComment = res.data!;
       if (edit()) {
@@ -278,15 +313,17 @@ export function submitComment() {
       if (replyId()) {
         clearReplyState();
       }
+      setPendingTurnstileSubmit(false);
       setTurnstileToken('');
       resetTurnstileWidget(turnstile(), turnstileWidgetId());
       return null;
     })
     .catch((err: TypeError) => {
       setIsSubmitting(false);
+      setPendingTurnstileSubmit(false);
       setTurnstileToken('');
       resetTurnstileWidget(turnstile(), turnstileWidgetId());
-      alert(err.message);
+      showAlert(err.message);
     });
 }
 
