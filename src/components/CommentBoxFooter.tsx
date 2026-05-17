@@ -8,8 +8,14 @@ import { LoadingIcon, MarkdownIcon, PreviewIcon } from './Icons';
 
 const CommentBoxFooter: Component = () => {
   const { config, locale } = configProvider;
-  const { isSubmitting, showPreview, setShowPreview, turnstileEnabled, setTurnstileContainer } =
-    commentBoxState;
+  const {
+    isSubmitting,
+    showPreview,
+    setShowPreview,
+    showTurnstile,
+    turnstileEnabled,
+    setTurnstileContainer,
+  } = commentBoxState;
   const { isLogin } = userInfoState;
   return (
     <div class="mx-3 my-2 flex flex-wrap">
@@ -37,7 +43,7 @@ const CommentBoxFooter: Component = () => {
         </button>
       </div>
       <div class="flex flex-grow-3 flex-shrink flex-col items-end">
-        <Show when={turnstileEnabled()}>
+        <Show when={turnstileEnabled() && showTurnstile()}>
           <div class="mb-2 w-full">
             <p class="mb-2 text-xs text-sColor">{locale().turnstileHint}</p>
             <div ref={(el) => setTurnstileContainer(el)} />

@@ -1,9 +1,8 @@
-const TURNSTILE_SCRIPT =
-  'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 
 export interface TurnstileLike {
-  render(container: HTMLElement, options: Record<string, unknown>): string;
-  reset(widgetId: string): void;
+  render: (container: HTMLElement, options: Record<string, unknown>) => string;
+  reset: (widgetId: string) => void;
 }
 
 interface TurnstileWindow extends Window {
@@ -23,6 +22,37 @@ export function createTurnstileCommentPayload(
   if (!enabled || !token) return {};
 
   return { turnstile: token };
+}
+
+export function resolveTurnstileSubmit(
+  enabled: boolean,
+  token: string,
+): {
+  shouldSubmit: boolean;
+  shouldShowTurnstile: boolean;
+  shouldPendSubmit: boolean;
+} {
+  if (!enabled) {
+    return {
+      shouldSubmit: true,
+      shouldShowTurnstile: false,
+      shouldPendSubmit: false,
+    };
+  }
+
+  if (token) {
+    return {
+      shouldSubmit: true,
+      shouldShowTurnstile: true,
+      shouldPendSubmit: false,
+    };
+  }
+
+  return {
+    shouldSubmit: false,
+    shouldShowTurnstile: true,
+    shouldPendSubmit: true,
+  };
 }
 
 export function ensureTurnstileScript(
